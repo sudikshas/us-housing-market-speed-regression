@@ -1,0 +1,165 @@
+---
+title: "Lab 2: Home Prices and Market Speed - Data Wrangling"
+author: "W203 Group 3 - Naik, Sarvepalli, Habib"
+output:
+  pdf_document:
+    toc: false
+    number_sections: true
+urlcolor: blue
+---
+
+```{r}
+library(ggplot2)
+library(broom)
+library(sandwich)
+library(lmtest)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(stargazer)
+library(caTools)
+```
+
+
+```{r}
+#Loading 3 dataset that will be used for the study
+
+days_pending <- read.csv("~/Downloads/Metro_mean_doz_pending_uc_sfrcondo_sm_month.csv")
+
+zhvi <- read.csv("~/Downloads/Metro_zhvi_uc_sfrcondo_tier_0.33_0.67_sm_sa_month.csv")
+
+price_cut <- read.csv("~/Downloads/Metro_mean_listings_price_cut_amt_uc_sfrcondo_sm_month.csv")
+```
+
+```{r}
+# Function to Rename columns by appending 'DaysPending' 'HomeValue', and PriceCut
+rename_columns <- function(df, suffix) {
+  colnames(df)[-1] <- paste0(colnames(df)[-1], suffix)
+  return(df)
+}
+```
+
+```{r}
+#Running the above function for renaming columns
+days_pending <- rename_columns(days_pending, "DaysPending")
+zhvi <- rename_columns(zhvi, "HomeValue")
+price_cut <- rename_columns(price_cut, "PriceCut")
+```
+
+
+```{r}
+# Selecting relevant columns
+days_pending_selected <- days_pending %>%
+  select(RegionID, SizeRankDaysPending, RegionNameDaysPending, StateNameDaysPending, ends_with("DaysPending"))
+
+zhvi_selected <- zhvi %>%
+  select(RegionID, ends_with("HomeValue"))
+
+price_cut_selected <- price_cut %>%
+  select(RegionID, ends_with("PriceCut"))
+```
+
+```{r}
+# Merging the datasets on RegionID and then once again merging the whole merged dataset with price_cut dataset
+merged_data <- merge(days_pending_selected, zhvi_selected, by = "RegionID")
+merged_data <- merge(merged_data, price_cut_selected, by = "RegionID")
+
+merged_data
+```
+
+```{r}
+# Getting column names excluding the key and metadata columns
+days_pending_columns <- grep("DaysPending", names(merged_data), value = TRUE)
+home_value_columns <- grep("HomeValue", names(merged_data), value = TRUE)
+price_cut_columns <-  grep("PriceCut", names(merged_data), value = TRUE)
+```
+
+```{r}
+# Creating a vector for the desired column order
+column_order <- c("RegionID", "SizeRankDaysPending", "RegionNameDaysPending", "StateNameDaysPending")
+for (i in seq_along(price_cut_columns)) {
+  column_order <- c(column_order, home_value_columns[i], days_pending_columns[i], price_cut_columns[i])
+}
+```
+
+```{r}
+# Reorder columns in merged data so that homevalue then pendingdays then price cut for particular date showup in that order
+merged_data <- merged_data %>% select(all_of(column_order))
+
+merged_data
+```
+
+```{r}
+#Ordering the dataset according to SizeRankDaysPending column
+merged_data <- merged_data %>% arrange(SizeRankDaysPending)
+
+merged_data
+```
+
+```{r}
+#Removing duplicated columns due to merging of datasets
+merged_data <- merged_data %>% select(-SizeRankDaysPending, -RegionNameDaysPending, -StateNameDaysPending, -RegionTypeDaysPending, -SizeRankPriceCut, -RegionNamePriceCut, -StateNamePriceCut, -RegionTypePriceCut)
+
+merged_data
+```
+
+```{r}
+#Renaming the column names
+merged_data <- merged_data %>%
+  rename(
+    SizeRank = SizeRankHomeValue,
+    RegionName = RegionNameHomeValue,
+    RegionType = RegionTypeHomeValue,
+    StateName = StateNameHomeValue
+  )
+
+merged_data
+```
+
+```{r}
+data = merged_data
+data
+```
+
+```{r}
+#Removing empty values from the dataset
+
+data <- data[which(data$StateName != ""), ]
+data <- data[which(data$X6.30.24HomeValue != ""), ]
+data <- data[which(data$X6.30.24DaysPending != ""), ]
+data <- data[which(data$X2024.06.30PriceCut != ""), ]
+
+data
+```
+
+
+```{r}
+#Selecting only the columns needed for the study
+data <- select(data, RegionID, RegionName, StateName, X6.30.24HomeValue, X6.30.24DaysPending, X2024.06.30PriceCut)
+
+data
+```
+
+```{r}
+#Renaming HomeValue, DaysPending, PriceCut to have no date for easier readability
+data <- data %>%
+  rename(
+    HomeValue = X6.30.24HomeValue,
+    DaysPending = X6.30.24DaysPending,
+    PriceCut = X2024.06.30PriceCut
+  )
+
+data
+```
+
+```{r}
+# Update row names to start from 1
+row.names(data) <- seq_len(nrow(data))
+data
+```
+
+```{r}
+# Write the dataframe to a CSV file
+write.csv(data, file = "~/Desktop/University/UC Berkeley/W203 Lab 2/Zillow_Housing_Dataset.csv", row.names = FALSE)
+```
+

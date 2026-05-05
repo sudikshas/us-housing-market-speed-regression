@@ -1,0 +1,167 @@
+---
+title: "Lab 2: Home Prices and Market Speed"
+author: "W203 Group 3 - Naik, Sarvepalli, Habib"
+output:
+  pdf_document:
+    toc: false
+    number_sections: true
+urlcolor: blue
+---
+
+```{r}
+library(ggplot2)
+library(broom)
+library(sandwich)
+library(lmtest)
+library(magrittr)
+library(tidyr)
+library(dplyr)
+library(stargazer)
+library(caTools)
+```
+
+
+```{r}
+data <- read.csv("~/Desktop/University/UC Berkeley/W203 Lab 2/Zillow_Housing_Dataset.csv")
+data
+```
+
+
+```{r}
+set.seed(123)
+sample <- sample.split(data$HomeValue, SplitRatio = 0.3)
+exploration_set <- subset(data, sample == TRUE)
+confirmation_set <- subset(data, sample == FALSE)
+```
+
+```{r}
+exploration_set
+```
+
+```{r}
+confirmation_set
+```
+
+
+```{r}
+plot(exploration_set$HomeValue, exploration_set$DaysPending)
+hist(exploration_set$HomeValue, main = "Histogram of Home Value", xlab = "Home Value", col = "blue")
+hist(exploration_set$DaysPending, main = "Histogram of Days Pending", xlab = "Days Pending", col = "green")
+```
+
+```{r}
+ggplot(confirmation_set, aes(x = HomeValue, y = DaysPending)) +
+  geom_point(color = "blue", alpha = 0.5) +
+  labs(title = "Home Values vs. Days to Pending",
+       x = "Home Value",
+       y = "Days to Pending") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title = element_text(size = 12)
+  )
+```
+
+```{r}
+level_level_model <- lm(DaysPending ~ HomeValue, data = exploration_set)
+
+robust_se_level_level <- vcovHC(level_level_model, type = "HC1")
+robust_se_level_level
+
+robust_coeftest_level_level <- coeftest(level_level_model, vcov = robust_se_level_level)
+robust_coeftest_level_level
+
+plot(level_level_model)
+```
+```{r}
+level_log_model <- lm(DaysPending ~ log(HomeValue) , data = exploration_set)
+
+robust_se_level_log <- vcovHC(level_log_model, type = "HC1")
+robust_se_level_log
+
+robust_coeftest_level_log <- coeftest(level_log_model, vcov = robust_se_level_log)
+robust_coeftest_level_log
+
+plot(level_log_model)
+```
+
+```{r}
+log_level_model <- lm(log(DaysPending) ~ HomeValue, data = exploration_set)
+
+robust_se_log_level <- vcovHC(log_level_model, type = "HC1")
+robust_se_log_level
+
+robust_coeftest_log_level <- coeftest(log_level_model, vcov = robust_se_log_level)
+robust_coeftest_log_level
+
+plot(log_level_model)
+```
+
+```{r}
+log_log_model <- lm(log(DaysPending) ~ log(HomeValue), data = exploration_set)
+
+robust_se_log_log <- vcovHC(log_log_model, type = "HC1")
+robust_se_log_log
+
+robust_coeftest_log_log <- coeftest(log_log_model, vcov = robust_se_log_log)
+robust_coeftest_log_log
+
+plot(log_log_model)
+```
+
+```{r}
+correlation <- cor(log(data$HomeValue), log(data$DaysPending), method = 'pearson')
+correlation
+```
+
+```{r}
+square_model <- lm(DaysPending ~ HomeValue + DaysPending**2, data=exploration_set)
+
+robust_se_square <- vcovHC(square_model, type = "HC1")
+robust_se_square
+
+robust_coeftest_square <- coeftest(square_model, vcov = robust_se_square)
+robust_coeftest_square
+
+plot(square_model)
+```
+
+```{r}
+log_log_model_final <- lm(log(DaysPending) ~ log(HomeValue), data = confirmation_set)
+
+robust_se_log_log_final <- vcovHC(log_log_model_final, type = "HC1")
+robust_se_log_log_final
+
+robust_coeftest_log_log_final <- coeftest(log_log_model_final, vcov = robust_se_log_log_final)
+robust_coeftest_log_log_final
+
+plot(log_log_model_final)
+```
+
+```{r}
+ggplot(confirmation_set, aes(x = log(HomeValue), y = log(DaysPending))) +
+  geom_point(color = "red", alpha = 0.5) +
+  labs(title = "Log Transformed Home Values vs. Days to Pending",
+       x = "Log Home Value",
+       y = "Log Days to Pending") +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.title = element_text(size = 12)
+  )
+```
+```{r}
+hist(exploration_set$HomeValue, main = "Histogram of Log Home Value", xlab = "Log Home Value", col = "blue")
+hist(exploration_set$DaysPending, main = "Histogram of Log Days Pending", xlab = "Log Days Pending", col = "green")
+```
+
+```{r}
+stargazer(log_log_model_final, type = "latex", coeftest = robust_coeftest_log_log_final, title = "Final Model Regression Results", 
+          dep.var.labels = "log(DaysPending)", covariate.labels = "log(HomeValue)", 
+          out = "regression_results.tex")
+```
+
+```{r}
+waldtest(log_log_model_final)
+```
+
